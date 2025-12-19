@@ -1,37 +1,28 @@
 ---
 layout: ../layouts/AboutLayout.astro
-title: "About"
+title: "关于我"
 ---
 
-AstroPaper is a minimal, accessible and SEO-friendly blog theme built with [Astro](https://astro.build/) and [Tailwind CSS](https://tailwindcss.com/).
+你好，我是 **中国科学院大学密码学院** 的一名博士一年级学生，目前在 **中国科学院密码研究所** 学习与科研，主要研究方向是 **密码学与信息安全**。
 
-![Astro Paper](public/astropaper-og.jpg)
+平时的研究兴趣包括：
 
-AstroPaper provides a solid foundation for blogs, or even portfolios\_ with full markdown support, built-in dark mode, and a clean layout that works out-of-the-box.
+- 现代密码学理论与协议设计  
+- 安全多方计算与隐私保护技术  
+- 形式化安全证明与漏洞分析  
+- 实用密码系统在工程中的落地与优化  
 
-The blog posts in this theme also serve as guides, docs or example articles\_ making AstroPaper a flexible starting point for your next content-driven site.
+除了科研之外，我也很喜欢：
 
-## Features
+- 折腾各种开发环境和效率工具  
+- 读一点数学和算法相关的书  
+- 写一些技术随笔和踩坑记录  
 
-AstroPaper comes with a set of useful features that make content publishing easy and effective:
+这个博客主要用来：
 
-- SEO-friendly
-- Fast performance
-- Light & dark mode
-- Highly customizable
-- Organizable blog posts
-- Responsive & accessible
-- Static search with [PageFind](https://pagefind.app/)
-- Automatic social image generation
+- 记录我的研究与学习过程  
+- 分享一些对密码学 / 安全 / 编程感兴趣的人可能有用的内容  
+- 偶尔写点生活里的小感想  
 
-and so much more.
+如果你对密码学、信息安全或者相关方向感兴趣，欢迎通过页面上的社交方式联系我，一起交流、学习与进步。
 
-## Show your support
-
-If you like [AstroPaper](https://github.com/satnaing/astro-paper), consider giving it a star ⭐️.
-
-Found a bug 🐛 or have an improvement ✨ in mind? Feel free to open an [issue](https://github.com/satnaing/astro-paper/issues), submit a [pull request](https://github.com/satnaing/astro-paper/pulls) or start a [discussion](https://github.com/satnaing/astro-paper/discussions).
-
-If you find this theme helpful, you can also [sponsor me on GitHub](https://github.com/sponsors/satnaing) or [buy me a coffee](https://buymeacoffee.com/satnaing) to show your support — every penny counts.
-
-Kyay zuu! 🙏🏼
