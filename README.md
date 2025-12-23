@@ -1,180 +1,218 @@
-# AstroPaper 📄
+# Proud Phase 🔐
 
-![AstroPaper](public/astropaper-og.jpg)
-[![Figma](https://img.shields.io/badge/Figma-F24E1E?style=for-the-badge&logo=figma&logoColor=white)](https://www.figma.com/community/file/1356898632249991861)
 ![Typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
-![GitHub](https://img.shields.io/github/license/satnaing/astro-paper?color=%232F3741&style=for-the-badge)
-[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?logo=conventionalcommits&logoColor=white&style=for-the-badge)](https://conventionalcommits.org)
-[![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg?style=for-the-badge)](http://commitizen.github.io/cz-cli/)
+![Astro](https://img.shields.io/badge/Astro-FF5D01?style=for-the-badge&logo=astro&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 
-AstroPaper is a minimal, responsive, accessible and SEO-friendly Astro blog theme. This theme is designed and crafted based on [my personal blog](https://satnaing.dev/blog).
+这是我的个人技术博客，专注于**全同态加密（FHE）**和**密码学**相关的深度技术文章。博客基于 AstroPaper 主题构建，提供快速、响应式且 SEO 友好的阅读体验。
 
-Read [the blog posts](https://astro-paper.pages.dev/posts/) or check [the README Documentation Section](#-documentation) for more info.
+## 📚 博客内容
 
-## 🔥 Features
+本博客主要记录我在学习和研究全同态加密过程中的思考与总结，包括：
 
-- [x] type-safe markdown
-- [x] super fast performance
-- [x] accessible (Keyboard/VoiceOver)
-- [x] responsive (mobile ~ desktops)
-- [x] SEO-friendly
-- [x] light & dark mode
-- [x] fuzzy search
-- [x] draft posts & pagination
-- [x] sitemap & rss feed
-- [x] followed best practices
-- [x] highly customizable
-- [x] dynamic OG image generation for blog posts [#15](https://github.com/satnaing/astro-paper/pull/15) ([Blog Post](https://astro-paper.pages.dev/posts/dynamic-og-image-generation-in-astropaper-blog-posts/))
+- **FHE 论文精读**：深入解析前沿论文，如 CKKS、BFV、TFHE 等方案
+- **算法实现**：同态加密算法的实现细节与优化技巧
+- **数学原理**：密码学背后的数学基础与证明
+- **工程实践**：RNS-CKKS、Bootstrapping 等技术的工程化实现
+- **学习笔记**：与 AI 对话的学习记录，深入浅出地理解复杂概念
 
-_Note: I've tested screen-reader accessibility of AstroPaper using **VoiceOver** on Mac and **TalkBack** on Android. I couldn't test all other screen-readers out there. However, accessibility enhancements in AstroPaper should be working fine on others as well._
+## ✨ 博客特色
 
-## ✅ Lighthouse Score
+- [x] **数学公式支持**：集成 KaTeX，完美渲染 LaTeX 数学公式
+- [x] **深度技术文章**：详细的论文解读和算法分析
+- [x] **问答式学习**：通过对话形式记录学习过程，便于理解
+- [x] **代码示例**：提供实际的代码实现和优化技巧
+- [x] **响应式设计**：在各种设备上都有良好的阅读体验
+- [x] **暗色模式**：保护眼睛的深色主题
+- [x] **快速搜索**：模糊搜索功能，快速定位内容
+- [x] **SEO 优化**：便于搜索引擎收录和分享
+- [x] **标签分类**：按主题组织文章（FHE、密码学、算法等）
+- [x] **RSS 订阅**：支持 RSS feed 订阅更新
 
-<p align="center">
-  <a href="https://pagespeed.web.dev/report?url=https%3A%2F%2Fastro-paper.pages.dev%2F&form_factor=desktop">
-    <img width="710" alt="AstroPaper Lighthouse Score" src="AstroPaper-lighthouse-score.svg">
-  <a>
-</p>
+## 🎯 最新文章
 
-## 🚀 Project Structure
+- **阅读论文《Homomorphic Multiple Precision Multiplication for CKKS and Reduced Modulus Consumption》**
+  - 深入解析 CKKS 方案的多精度乘法优化
+  - 详细讲解 Mult² 算法的原理与实现
+  - 探讨模数消耗减半的数学原理
 
-Inside of AstroPaper, you'll see the following folders and files:
+## 🚀 项目结构
+
+博客的目录结构如下：
 
 ```bash
 /
 ├── public/
-│   ├── assets/
-|   ├── pagefind/ # auto-generated when build
-│   └── favicon.svg
-│   └── astropaper-og.jpg
+│   ├── blog/              # 博客文章的图片资源
+│   │   └── CKKS-DR/       # 各篇文章的图片文件夹
 │   └── favicon.svg
 │   └── toggle-theme.js
 ├── src/
-│   ├── assets/
-│   │   └── icons/
-│   │   └── images/
-│   ├── components/
+│   ├── components/        # React/Astro 组件
 │   ├── data/
-│   │   └── blog/
-│   │       └── some-blog-posts.md
-│   ├── layouts/
-│   └── pages/
-│   └── styles/
-│   └── utils/
-│   └── config.ts
-│   └── constants.ts
-│   └── content.config.ts
-└── astro.config.ts
+│   │   └── blog/          # 📝 博客文章（Markdown 格式）
+│   │       └── CKKS-DR.md # 论文阅读笔记
+│   ├── layouts/           # 页面布局模板
+│   ├── pages/             # 路由页面
+│   ├── styles/            # 全局样式
+│   └── config.ts          # 博客配置
+├── astro.config.ts        # Astro 配置（含 KaTeX 支持）
+└── package.json
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+**重要目录说明**：
+- `src/data/blog/`：所有博客文章的 Markdown 文件
+- `public/blog/`：文章中使用的图片和静态资源
+- `astro.config.ts`：已配置 remark-math 和 rehype-katex 用于数学公式渲染
 
-Any static assets, like images, can be placed in the `public/` directory.
+## 📝 如何添加新文章
 
-All blog posts are stored in `src/data/blog` directory.
+1. 在 `src/data/blog/` 目录下创建新的 Markdown 文件
+2. 添加 frontmatter 元数据：
 
-## 📖 Documentation
+```markdown
+---
+title: "文章标题"
+pubDatetime: 2025-12-23T10:00:00Z
+description: "文章简介"
+tags:
+  - FHE
+  - CKKS
+featured: true
+draft: false
+timezone: "Asia/Shanghai"
+---
 
-Documentation can be read in two formats\_ _markdown_ & _blog post_.
-
-- Configuration - [markdown](src/data/blog/how-to-configure-astropaper-theme.md) | [blog post](https://astro-paper.pages.dev/posts/how-to-configure-astropaper-theme/)
-- Add Posts - [markdown](src/data/blog/adding-new-post.md) | [blog post](https://astro-paper.pages.dev/posts/adding-new-posts-in-astropaper-theme/)
-- Customize Color Schemes - [markdown](src/data/blog/customizing-astropaper-theme-color-schemes.md) | [blog post](https://astro-paper.pages.dev/posts/customizing-astropaper-theme-color-schemes/)
-- Predefined Color Schemes - [markdown](src/data/blog/predefined-color-schemes.md) | [blog post](https://astro-paper.pages.dev/posts/predefined-color-schemes/)
-
-## 💻 Tech Stack
-
-**Main Framework** - [Astro](https://astro.build/)  
-**Type Checking** - [TypeScript](https://www.typescriptlang.org/)  
-**Styling** - [TailwindCSS](https://tailwindcss.com/)  
-**UI/UX** - [Figma Design File](https://www.figma.com/community/file/1356898632249991861)  
-**Static Search** - [FuseJS](https://pagefind.app/)  
-**Icons** - [Tablers](https://tabler-icons.io/)  
-**Code Formatting** - [Prettier](https://prettier.io/)  
-**Deployment** - [Cloudflare Pages](https://pages.cloudflare.com/)  
-**Illustration in About Page** - [https://freesvgillustration.com](https://freesvgillustration.com/)  
-**Linting** - [ESLint](https://eslint.org)
-
-## 👨🏻‍💻 Running Locally
-
-You can start using this project locally by running the following command in your desired directory:
-
-```bash
-# pnpm
-pnpm create astro@latest --template satnaing/astro-paper
-
-# pnpm
-pnpm create astro@latest -- --template satnaing/astro-paper
-
-# yarn
-yarn create astro --template satnaing/astro-paper
-
-# bun
-bun create astro@latest -- --template satnaing/astro-paper
+文章内容...
 ```
 
-Then start the project by running the following commands:
+3. 如果文章包含图片，将图片放在 `public/blog/文章名/` 目录下
+4. 在 Markdown 中使用相对路径引用图片：`![描述](/blog/文章名/图片.png)`
+5. 数学公式使用 LaTeX 语法：
+   - 行内公式：`$E = mc^2$`
+   - 块级公式：`$$\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}$$`
+
+## 💻 技术栈
+
+**主框架** - [Astro](https://astro.build/) - 现代化的静态站点生成器  
+**类型检查** - [TypeScript](https://www.typescriptlang.org/) - 类型安全  
+**样式** - [TailwindCSS](https://tailwindcss.com/) - 实用优先的 CSS 框架  
+**数学公式** - [KaTeX](https://katex.org/) - 快速的数学公式渲染  
+**Markdown 处理** - [remark-math](https://github.com/remarkjs/remark-math) + [rehype-katex](https://github.com/remarkjs/remark-math/tree/main/packages/rehype-katex)  
+**搜索功能** - [Pagefind](https://pagefind.app/) - 静态站点搜索  
+**图标** - [Tabler Icons](https://tabler-icons.io/)  
+**代码格式化** - [Prettier](https://prettier.io/)  
+**代码检查** - [ESLint](https://eslint.org)  
+**部署** - [GitHub Pages](https://pages.github.com/) / [Vercel](https://vercel.com/) / [Netlify](https://www.netlify.com/)
+
+## 🚀 本地运行
+
+### 克隆项目
 
 ```bash
-# install dependencies if you haven't done so in the previous step.
+git clone https://github.com/你的用户名/proud-phase.git
+cd proud-phase
+```
+
+### 安装依赖
+
+```bash
 pnpm install
+```
 
-# start running the project
+### 启动开发服务器
+
+```bash
 pnpm run dev
 ```
 
-As an alternative approach, if you have Docker installed, you can use Docker to run this project locally. Here's how:
+然后在浏览器中访问 `http://localhost:4321`
+
+### 构建生产版本
 
 ```bash
-# Build the Docker image
-docker build -t astropaper .
-
-# Run the Docker container
-docker run -p 4321:80 astropaper
+pnpm run build
 ```
 
-## Google Site Verification (optional)
+构建完成后，静态文件将生成在 `dist/` 目录中。
 
-You can easily add your [Google Site Verification HTML tag](https://support.google.com/webmasters/answer/9008080#meta_tag_verification&zippy=%2Chtml-tag) in AstroPaper using an environment variable. This step is optional. If you don't add the following environment variable, the google-site-verification tag won't appear in the HTML `<head>` section.
+### Docker 部署（可选）
+
+如果你安装了 Docker，也可以使用 Docker 运行：
 
 ```bash
-# in your environment variable file (.env)
-PUBLIC_GOOGLE_SITE_VERIFICATION=your-google-site-verification-value
+# 构建 Docker 镜像
+docker build -t proud-phase .
+
+# 运行容器
+docker run -p 4321:80 proud-phase
 ```
 
-> See [this discussion](https://github.com/satnaing/astro-paper/discussions/334#discussioncomment-10139247) for adding AstroPaper to the Google Search Console.
+## ⚙️ 配置
 
-## 🧞 Commands
+### 博客基本信息
 
-All commands are run from the root of the project, from a terminal:
+在 `src/config.ts` 中修改博客的基本信息：
 
-> **_Note!_** For `Docker` commands we must have it [installed](https://docs.docker.com/engine/install/) in your machine.
+```typescript
+export const SITE = {
+  website: "https://你的域名.com/",
+  author: "你的名字",
+  desc: "专注于全同态加密和密码学的技术博客",
+  title: "Proud Phase",
+  // ... 其他配置
+};
+```
 
-| Command                              | Action                                                                                                                           |
-| :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install`                       | Installs dependencies                                                                                                            |
-| `pnpm run dev`                       | Starts local dev server at `localhost:4321`                                                                                      |
-| `pnpm run build`                     | Build your production site to `./dist/`                                                                                          |
-| `pnpm run preview`                   | Preview your build locally, before deploying                                                                                     |
-| `pnpm run format:check`              | Check code format with Prettier                                                                                                  |
-| `pnpm run format`                    | Format codes with Prettier                                                                                                       |
-| `pnpm run sync`                      | Generates TypeScript types for all Astro modules. [Learn more](https://docs.astro.build/en/reference/cli-reference/#astro-sync). |
-| `pnpm run lint`                      | Lint with ESLint                                                                                                                 |
-| `docker compose up -d`               | Run AstroPaper on docker, You can access with the same hostname and port informed on `dev` command.                              |
-| `docker compose run app pnpm install` | You can run any command above into the docker container.                                                                         |
-| `docker build -t astropaper .`       | Build Docker image for AstroPaper.                                                                                               |
-| `docker run -p 4321:80 astropaper`   | Run AstroPaper on Docker. The website will be accessible at `http://localhost:4321`.                                             |
+### Google 站点验证（可选）
 
-> **_Warning!_** Windows PowerShell users may need to install the [concurrently package](https://www.npmjs.com/package/concurrently) if they want to [run diagnostics](https://docs.astro.build/en/reference/cli-reference/#astro-check) during development (`astro check --watch & astro dev`). For more info, see [this issue](https://github.com/satnaing/astro-paper/issues/113).
+在 `.env` 文件中添加：
 
-## ✨ Feedback & Suggestions
+```bash
+PUBLIC_GOOGLE_SITE_VERIFICATION=your-verification-code
+```
 
-If you have any suggestions/feedback, you can contact me via [my email](mailto:contact@satnaing.dev). Alternatively, feel free to open an issue if you find bugs or want to request new features.
+## 🧞 常用命令
 
-## 📜 License
+所有命令都在项目根目录下的终端中运行：
 
-Licensed under the MIT License, Copyright © 2025
+| 命令                     | 说明                                                                     |
+| :----------------------- | :----------------------------------------------------------------------- |
+| `pnpm install`           | 安装依赖                                                                 |
+| `pnpm run dev`           | 启动本地开发服务器，访问 `localhost:4321`                               |
+| `pnpm run build`         | 构建生产版本到 `./dist/` 目录                                           |
+| `pnpm run preview`       | 在本地预览构建结果                                                       |
+| `pnpm run format:check`  | 使用 Prettier 检查代码格式                                               |
+| `pnpm run format`        | 使用 Prettier 格式化代码                                                 |
+| `pnpm run sync`          | 为所有 Astro 模块生成 TypeScript 类型                                    |
+| `pnpm run lint`          | 使用 ESLint 检查代码                                                     |
+
+### Docker 命令（可选）
+
+| 命令                                  | 说明                                                   |
+| :------------------------------------ | :----------------------------------------------------- |
+| `docker compose up -d`                | 使用 Docker Compose 运行博客                           |
+| `docker compose run app pnpm install` | 在 Docker 容器中运行命令                               |
+| `docker build -t proud-phase .`       | 构建 Docker 镜像                                       |
+| `docker run -p 4321:80 proud-phase`   | 运行 Docker 容器，访问 `http://localhost:4321`         |
+
+## 🤝 贡献
+
+欢迎提出建议和反馈！如果你发现了 bug 或有新功能建议，请：
+
+1. 提交 Issue
+2. 发起 Pull Request
+3. 或通过邮件联系我
+
+## 📄 许可证
+
+本项目基于 MIT License 开源。
+
+## 🙏 致谢
+
+- 博客主题基于 [AstroPaper](https://github.com/satnaing/astro-paper) 构建
+- 感谢所有开源项目的贡献者
 
 ---
 
-Made with 🤍 by [Sat Naing](https://satnaing.dev) 👨🏻‍💻 and [contributors](https://github.com/satnaing/astro-paper/graphs/contributors).
+**专注于全同态加密，探索密码学的奥秘** 🔐
