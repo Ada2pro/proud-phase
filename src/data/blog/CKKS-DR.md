@@ -1815,7 +1815,7 @@ Lemma 4.2 是在用数学语言说：
 
 
 BOB:为什么要保证这个条件？以及这个条件是怎么推导出来的？
-![Alt text](/home/ada/projects/bob/proud-phase/public/blog/CKKS-DR/1.png)
+![Alt text](/blog/CKKS-DR/1.png)
 
 这是一个非常核心的问题，涉及到同态加密中**“模运算正确性”**的边界条件。
 
@@ -1944,7 +1944,7 @@ Left/Right Hand Sides 指的就是 **“明文真值（LHS）”** 和 **“算�
 
 
 BOB:Lemma 4.4.中的这段话是啥意思？
-![Alt text](/home/ada/projects/bob/proud-phase/public/blog/CKKS-DR/2.png)
+![Alt text](/blog/CKKS-DR/2.png)
 
 
 这段话是在解释为什么作者设计的 $\text{Relin}^2$ 算法比一种“直观但幼稚”的方法更优秀。
@@ -2258,7 +2258,7 @@ $$ = \mathbf{C^2 \cdot q_{\text{div}}} $$
 BOB:
 4.2的结尾：
 为什么Tensor步骤不需要NTT？
-![Alt text](/home/ada/projects/bob/proud-phase/public/blog/CKKS-DR/3.png)
+![Alt text](/blog/CKKS-DR/3.png)
 
 
 这是一个关于同态加密工程实现的经典问题。
@@ -2452,7 +2452,7 @@ BOB:
 最后一段中说：
 Experiments show that this analysis  is pessimistic and allow for better pairs (k, qdiv).
 这是什么意思？意思是qdiv slightly smaller than  √Δ是不可行的？？
-![Alt text](/home/ada/projects/bob/proud-phase/public/blog/CKKS-DR/4.png)
+![Alt text](/blog/CKKS-DR/4.png)
 
 
 这几个问题非常细致，涉及到 CKKS 参数选取的工程细节（Magic of Parameters）。我们逐个来剖析：
@@ -2636,8 +2636,8 @@ BOB:
 对于步骤1，即使对于较低的层级，也要把所有q_alpha_i的分量d_i算出来吗？以及这个计算过程是CRT的逆过程吗？
 对于步骤2，此时得到的是beta个结果，经过步骤三后得到的还是beta个结果，如何返回到RNS中l个素数表达的形式上？
 以及在模数提升时，需要先从NTT域换回普通系数域？
-![Alt text](/home/ada/projects/bob/proud-phase/public/blog/CKKS-DR/5.png)
-![Alt text](/home/ada/projects/bob/proud-phase/public/blog/CKKS-DR/6.png)
+![Alt text](/blog/CKKS-DR/5.png)
+![Alt text](/blog/CKKS-DR/6.png)
 
 这是一张非常经典的图片，描述的是 **Hybrid Key Switching（混合密钥切换）** 技术，通常被用于像 **HEaaN** 或 **SEAL** 这样的现代同态加密库中。
 
