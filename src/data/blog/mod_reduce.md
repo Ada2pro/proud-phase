@@ -2,7 +2,7 @@
 title: "关于GPU实现中的模%和Montgomery约简间的差距"
 pubDatetime: 2025-12-25T22:08:01Z
 description: >
-  关于GPU实现中的模%和Montgomery约简间的差距
+  关于GPU实现中的模(百分号)%和Montgomery约简间的差距
 tags:
   - 约简算法
 featured: true
