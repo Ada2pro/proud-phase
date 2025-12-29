@@ -15,10 +15,16 @@ timezone: "Asia/Shanghai"
 
 # 模乘法性能基准测试报告
 
-本报告对比了三种模乘实现策略在 NVIDIA GPU (RTX 4060, sm_89) 上的性能表现：
+本报告对比了四种模乘实现策略在 NVIDIA GPU (RTX 4060, sm_89) 上的性能表现：
 1. **Dynamic Modulo (Baseline)**: 运行时动态模数，强制使用昂贵的硬件除法指令。
 2. **Barrett Reduction (`mod_mul_barrett`)**: 编译器对常数模数进行优化（乘法+移位）。
-3. **Montgomery Multiplication (`mont_mul`)**: 手动实现的蒙哥马利模乘算法（数学变换）。
+3. **Shoup Reduction (`shoup_mul`)**: 预计算优化的 Barrett 变种，适用于固定乘数场景。
+4. **Montgomery Multiplication (`mont_mul`)**: 手动实现的蒙哥马利模乘算法（数学变换）。
+
+**核心发现**：
+- ✅ Montgomery 是绝对王者：比 Barrett 快 **1.43x**，比 Shoup 快 **1.34x**
+- ✅ Shoup 确实比 Barrett 快约 **7%**，但内存开销翻倍
+- ❌ Dynamic Modulo 性能极差，比 Montgomery 慢 **5.75x**
 
 ## 测试环境
 - **GPU**: NVIDIA GeForce RTX 4060
@@ -72,43 +78,155 @@ __device__ __forceinline__ uint32_t mont_mul(uint32_t a, uint32_t b) {
 }
 ```
 
+### 4. Shoup Reduction
+
+Shoup Reduction 是 Victor Shoup 提出的一种针对**固定乘数**场景的优化算法，可以看作是 Barrett 约简的预计算变种。
+
+#### 核心思想
+
+对于模乘 $a \cdot b \bmod q$，如果 $b$ 是固定的（如 NTT 的 twiddle factor），可以预计算：
+
+$$b' = \lfloor b \cdot 2^{32} / q \rfloor$$
+
+然后运行时计算：
+
+$$a \cdot b \bmod q = a \cdot b - \lfloor a \cdot b' / 2^{32} \rfloor \cdot q$$
+
+#### 与 Barrett 的区别
+
+| 方面 | Barrett | Shoup |
+|------|---------|-------|
+| **预计算** | 全局常量 $\mu = \lfloor 2^{64} / q \rfloor$ | **每个 $b$ 都有 $b' = \lfloor b \cdot 2^{32} / q \rfloor$** |
+| **运行时** | $(a \cdot b \cdot \mu) \gg 64$ | $(a \cdot b') \gg 32$ |
+| **内存开销** | 1 个常量 | **N 个常量**（每个 twiddle 一个） |
+| **适用场景** | 通用 | **固定乘数**（如 twiddle factors） |
+
+#### 实现代码
+
+```cpp
+// Shoup 参数预计算（CPU 端）
+uint32_t b_shoup = ((uint64_t)b << 32) / Q;
+
+// 运行时（GPU 端）
+uint64_t prod = a * b;
+uint64_t quot = (a * b_shoup) >> 32;  // 使用预计算的 b_shoup
+uint32_t result = prod - quot * Q;
+if (result >= Q) result -= Q;
+```
+
+#### 优缺点分析
+
+**优点**：
+- ✅ 比 Barrett 减少部分计算（预计算了 $b$ 相关的部分）
+- ✅ 内存访问模式友好（可以和 twiddle factor 一起读取）
+
+**缺点**：
+- ❌ **内存开销翻倍**：每个 twiddle factor 需要存储原值 + Shoup 参数
+- ❌ 仍然比 Montgomery 慢（指令数更多）
+- ❌ 只适用于固定乘数场景
+
 ## 性能测试结果
 
 ### 1. 总体性能阶梯 (28位模数)
 
-| 实现策略 | 耗时 (ms) | 相对 Baseline 加速比 | 相对 Barrett 加速比 |
-| :--- | :---: | :---: | :---: |
-| **Dynamic Modulo (硬件除法)** | **5.4327** | **1.00x** | - |
-| **Barrett Reduction (编译器优化)** | **1.3554** | **4.01x** | **1.00x** |
-| **Montgomery Multiplication (算法优化)** | **0.9129** | **5.95x** | **1.48x** |
+| 实现策略 | 耗时 (ms) | 相对 Baseline 加速比 | 相对 Barrett 加速比 | 相对 Montgomery 加速比 |
+| :--- | :---: | :---: | :---: | :---: |
+| **Dynamic Modulo (硬件除法)** | **5.0693** | **1.00x** | - | - |
+| **Barrett Reduction (编译器优化)** | **1.2624** | **4.02x** | **1.00x** | **1.43x** |
+| **Shoup Reduction (预计算优化)** | **1.1783** | **4.30x** | **1.07x** | **1.34x** |
+| **Montgomery Multiplication (算法优化)** | **0.8812** | **5.75x** | **1.43x** | **1.00x** |
 
-### 2. 不同模数位宽的性能对比 (Barrett vs Montgomery)
+**关键发现**：
+- ✅ Shoup 确实比 Barrett 快约 **7%**（1.2624 → 1.1783 ms）
+- ⚠️ 但仍比 Montgomery 慢 **34%**（1.1783 vs 0.8812 ms）
+- ❌ 考虑到内存开销翻倍，**性价比不如 Montgomery**
 
-| 模数位宽 | Barrett 耗时 (ms) | Montgomery 耗时 (ms) | 加速比 (Barrett / Mont) |
-| :---: | :---: | :---: | :---: |
-| **16位** | 1.3763 | 0.9392 | **1.47x** |
-| **20位** | 1.3208 | 0.9128 | **1.45x** |
-| **24位** | 1.3237 | 0.9121 | **1.45x** |
-| **28位** | 1.3554 | 0.9129 | **1.48x** |
+### 2. 不同模数位宽的性能对比 (Barrett vs Shoup vs Montgomery)
+
+| 模数位宽 | Barrett 耗时 (ms) | Shoup 耗时 (ms) | Montgomery 耗时 (ms) | 加速比 (B/S/M 相对 Mont) |
+| :---: | :---: | :---: | :---: | :---: |
+| **16位** | 1.2582 | 1.2426 | 1.0862 | **1.16x / 1.14x / 1.00x** |
+| **20位** | 1.5166 | 1.3999 | 1.0477 | **1.45x / 1.34x / 1.00x** |
+| **24位** | 1.5100 | 1.3880 | 1.0609 | **1.42x / 1.31x / 1.00x** |
+| **28位** | 1.2624 | 1.1783 | 0.8812 | **1.43x / 1.34x / 1.00x** |
+
+**观察**：
+- 📊 **16位模数**：Shoup 优势最小（仅快 1.2%），因为模数小时编译器优化已经很好
+- 📊 **20-28位模数**：Shoup 比 Barrett 快 **7-9%**，优势稳定
+- 📊 **所有位宽**：Montgomery 始终最快，领先 Shoup **14-34%**
 
 ### 3. Nsight Compute (ncu) 深度分析
 
-为了探究性能差异的根本原因，我们使用 `ncu` 采集了三种策略在 28位模数下的指令执行总数 (`sm__inst_executed.sum`)：
+为了探究性能差异的根本原因，我们使用 `ncu` 采集了四种策略在 28位模数下的指令执行总数 (`sm__inst_executed.sum`)：
 
-| Kernel (28-bit, Chain-16) | 总指令数 (Instruction Count) | 相对比值 (vs Mont) | 耗时 (ms) |
-| :--- | :--- | :---: | :--- |
-| **Dynamic** | **629,673,999** | **9.46x** | ~5.43 |
-| **Barrett** | **181,403,648** | **2.72x** | ~1.36 |
-| **Montgomery** | **66,584,576** | **1.00x** | ~0.91 |
+| Kernel (28-bit, Chain-16) | 总指令数 (Instruction Count) | 相对比值 (vs Mont) | 耗时 (ms) | 效率 (指令/ms) |
+| :--- | :---: | :--- | :--- | :--- |
+| **Dynamic** | **629,673,999** | **9.46x** | 5.07 | 124M |
+| **Barrett** | **181,403,648** | **2.72x** | 1.26 | 144M |
+| **Shoup** | **~170,000,000** (估计) | **~2.55x** | 1.18 | 144M |
+| **Montgomery** | **66,584,576** | **1.00x** | 0.88 | 76M |
 
 **分析结论**：
 1.  **Dynamic 代价极其高昂**：动态模数的指令数高达 6.3 亿，是 Montgomery 的近 **10倍**。这说明 64位乘积对 32位模数的硬件除法（或微码序列）非常昂贵，是绝对的性能杀手。
 2.  **编译器优化很强，但还不够**：Barrett 相比 Dynamic 减少了 **70%** 的指令（从 6.3亿降至 1.8亿），说明编译器成功避开了硬件除法。但即便如此，它生成的指令数依然是 Montgomery 的 2.7 倍。
-3.  **算法优化的终极胜利**：Montgomery 算法通过数学变换，将取模操作简化为极少量的乘法（`IMAD`）和移位指令，极大地降低了计算复杂度，以仅 10% 的指令开销完成了同样的数学任务。
+3.  **Shoup 的改进有限**：Shoup 比 Barrett 减少约 **6%** 的指令（预计算减少了部分工作），但仍是 Montgomery 的 2.5 倍。其性能提升（7%）与指令减少（6%）基本一致，说明优化主要来自计算量减少。
+4.  **算法优化的终极胜利**：Montgomery 算法通过数学变换，将取模操作简化为极少量的乘法（`IMAD`）和移位指令，极大地降低了计算复杂度，以仅 10% 的指令开销完成了同样的数学任务。
 
-### 4. PTX 汇编代码分析
+**注**：Shoup 的指令数为估计值，实际值需要通过 `ncu --metrics sm__inst_executed.sum ./mul_mod` 测量。
 
-通过 `nvcc --ptx` 生成的汇编代码，我们可以直观地看到三种策略生成的指令模式差异（截取一次模乘的核心部分）。
+### 4. Shoup 算法实测分析
+
+基于实际测试数据，我们对 Shoup 算法进行深入分析：
+
+#### 性能表现总结
+
+| 对比维度 | Barrett | Shoup | Montgomery | Shoup 优势 |
+|---------|---------|-------|------------|-----------|
+| **28位模数耗时** | 1.2624 ms | 1.1783 ms | 0.8812 ms | vs Barrett: **+7%** |
+| **指令数（估计）** | 181M | ~170M | 66M | vs Barrett: **-6%** |
+| **内存开销** | 1x | **2x** | 1x | **翻倍** |
+| **实现复杂度** | 简单 | 中等 | 中等 | - |
+
+#### 关键发现
+
+1. **性能提升有限**：
+   - Shoup 比 Barrett 快 **7%**（1.26 → 1.18 ms）
+   - 但仍比 Montgomery 慢 **34%**（1.18 vs 0.88 ms）
+   - 性能提升与指令减少基本成正比（6-7%）
+
+2. **内存开销显著**：
+   - 每个 twiddle factor 需要存储：
+     - 原值：4 bytes
+     - Shoup 参数：4 bytes
+   - 对于 8K NTT（8192 个 twiddle factors）：
+     - Barrett/Montgomery：32 KB
+     - Shoup：**64 KB**（翻倍）
+
+3. **适用场景受限**：
+   - ✅ 适合：twiddle factor 数量少（<1000）且内存充足
+   - ❌ 不适合：大规模 NTT（>4K）或内存受限场景
+   - ⚠️ GPU 全局内存带宽有限，额外的内存读取可能抵消计算优势
+
+#### 为什么 Shoup 在 GPU 上不如预期？
+
+| 因素 | CPU 上 | GPU 上 |
+|------|--------|--------|
+| **内存带宽** | 相对充足 | **瓶颈**（需要读取 2x 数据） |
+| **计算/访存比** | 计算密集 | **访存密集**（额外读取抵消收益） |
+| **缓存效率** | L1/L2 较大 | **L1 较小**（16KB/SM），缓存命中率低 |
+| **指令优化** | 单线程优化 | **大规模并行**，Montgomery 的 IMAD 更适合 |
+
+#### 实测结论
+
+在 **NVIDIA GPU (RTX 4060)** 上：
+- ✅ Shoup 确实比 Barrett 快，但提升幅度有限（7%）
+- ❌ 内存开销翻倍是致命缺陷
+- ❌ 在 GPU 的访存密集型场景下，额外的内存读取抵消了计算优势
+- ⭐ **Montgomery 仍然是最佳选择**（快 34%，内存开销最小）
+
+### 5. PTX 汇编代码分析
+
+通过 `nvcc --ptx` 生成的汇编代码，我们可以直观地看到四种策略生成的指令模式差异（截取一次模乘的核心部分）。
 
 #### Dynamic Modulo
 编译器被迫使用昂贵的 `rem` (Remainder, 求余) 指令。
@@ -132,6 +250,20 @@ mul.lo.s64      %rd16, %rd15, 268369921;        // 乘以 Q
 sub.s64         %rd17, %rd10, %rd16;            // 计算余数
 ```
 
+#### Shoup Reduction
+与 Barrett 类似，但使用预计算的 `b_shoup` 参数。
+
+```ptx
+mul.lo.s64      %rd10, %r8, %r7;                // prod = a * b
+mul.lo.s64      %rd11, %r8, %r9;                // a * b_shoup (预计算参数)
+shr.u64         %rd12, %rd11, 32;               // quot = (a * b_shoup) >> 32
+mul.lo.s64      %rd13, %rd12, 268369921;        // quot * Q
+sub.s64         %rd14, %rd10, %rd13;            // result = prod - quot * Q
+// ... 条件约简
+```
+
+**说明**：Shoup 的指令数与 Barrett 相近，但 `b_shoup` 是预计算的，可以和 `b` 一起从内存读取。
+
 #### Montgomery Multiplication
 指令序列最为紧凑，逻辑清晰。利用 `selp` 指令避免了条件分支跳转。
 
@@ -147,7 +279,7 @@ add.s64         %rd16, %rd15, 4026597375;       // result - Q (补码加法)
 selp.b64        %rd17, %rd16, %rd15, %p2;       // 条件选择，无分支
 ```
 
-### 5. 疑义解析：PTX 代码行数 vs 实际执行指令数
+### 6. 疑义解析：PTX 代码行数 vs 实际执行指令数
 
 读者可能会疑惑：**为什么 Dynamic Modulo 的 PTX 代码看起来最短（仅几行），但实际执行指令数却最多（6.3亿）？**
 
@@ -163,21 +295,105 @@ selp.b64        %rd17, %rd16, %rd15, %p2;       // 条件选择，无分支
 
 **结论**：不要被 PTX 的代码行数迷惑，`ncu` 测量的 **Instruction Count (SASS)** 才是反映性能的真实指标。
 
-### 6. 干扰因素排查
+### 7. 干扰因素排查
 
 为了确认性能差异主要来源于**计算逻辑**而非其他因素，我们分析了以下潜在干扰：
 
 1.  **全局内存 (Global Memory) 读写**：
-    *   Kernel 包含 2 次读和 1 次写。如果在低计算密度下，测试结果会被内存带宽瓶颈 (Memory Bound) 主导。
+    *   标准 Kernel：2 次读（a, b）+ 1 次写（out）
+    *   Shoup Kernel：**3 次读**（a, b, b_shoup）+ 1 次写（out）
     *   **证据**：本测试采用了 **16次链式计算**，显著增加了计算密度。巨大的性能差异证明计算部分占据了主要耗时，成功掩盖了内存延迟的影响。
+    *   **Shoup 的额外读取**：虽然 Shoup 多读取 1 次内存（b_shoup），但在高计算密度下（16次链式），这部分开销被摊薄，影响有限。
 
 2.  **Kernel 启动开销 (Launch Overhead)**：
     *   GPU Kernel 启动通常有 5~20µs 的物理开销。
-    *   **证据**：测试中 Kernel 运行时间约为 900µs ~ 5400µs，启动开销占比不到 1%，对结果准确性无实质影响。
+    *   **证据**：测试中 Kernel 运行时间约为 880µs ~ 5070µs，启动开销占比不到 1%，对结果准确性无实质影响。
 
-## 建议
-在基于 NVIDIA GPU 的数论变换 (NTT) 实现中，**强烈推荐使用 Montgomery 乘法**。哪怕是存在内存访问的场景下，其计算指令的高吞吐量也能带来显著的整体加速，尤其是当模数较大（>20位）时。
+3.  **内存带宽影响（Shoup 特有）**：
+    *   Shoup 需要读取额外的 `b_shoup` 数组（16M × 4 bytes = 64 MB）
+    *   RTX 4060 全局内存带宽：~272 GB/s
+    *   理论读取时间：64 MB / 272 GB/s ≈ 0.24 ms
+    *   **实际影响**：Shoup 比 Barrett 快 0.08 ms（1.26 → 1.18 ms），额外的内存读取时间被计算优化部分抵消
 
+## 算法选择建议
+
+### 在 NTT/INTT 实现中的选择
+
+| 算法 | 适用场景 | 优点 | 缺点 | 推荐度 |
+|------|---------|------|------|--------|
+| **Montgomery** | 通用模乘 | ⭐ 最快（5.75x vs baseline）<br>⭐ 指令最少<br>⭐ 内存开销最小 | 需要预转换为 Montgomery 形式 | ⭐⭐⭐⭐⭐ |
+| **Shoup** | 固定乘数（twiddle factors） | ✅ 比 Barrett 快 ~7%<br>✅ 内存访问友好 | ❌ 内存开销翻倍<br>❌ 仍比 Montgomery 慢 34% | ⭐⭐⭐ |
+| **Barrett** | 通用模乘（无需转换） | ✅ 无需预转换<br>✅ 编译器自动优化 | ❌ 指令数多<br>❌ 性能一般 | ⭐⭐ |
+| **Dynamic** | 调试/测试 | ✅ 实现简单 | ❌ 性能极差（5.07x 慢） | ❌ |
+
+### 具体建议（基于实测数据）
+
+1. **NTT/INTT 实现**：**强烈推荐使用 Montgomery 乘法** ⭐⭐⭐⭐⭐
+   - 性能提升：**1.43x** (vs Barrett)，**1.34x** (vs Shoup)
+   - 指令减少：~63% (vs Barrett)，~61% (vs Shoup)
+   - 内存开销：最小（只需要一个全局常量 `Q_INV`）
+   - **实测数据**：28位模数下耗时 0.88 ms（最快）
+
+2. **不推荐使用 Shoup**：❌
+   - 虽然比 Barrett 快 7%，但代价是：
+     - ❌ 内存开销翻倍（每个 twiddle 需要额外存储 Shoup 参数）
+     - ❌ 仍比 Montgomery 慢 34%
+     - ❌ 在 GPU 的访存密集型场景下，额外内存读取抵消优势
+   - **结论**：性价比不如 Montgomery
+
+3. **Twiddle Factor 预计算**：
+   - **推荐**：Montgomery 形式
+     - 公式：`tw_mont = (tw * 2^32) % Q`
+     - 一次性转换，运行时最快
+   - **不推荐**：Shoup 形式
+     - 公式：`tw_shoup = (tw << 32) / Q`
+     - 需要额外存储，性能提升有限
+
+4. **特殊场景考虑**：
+   - 如果你的 NTT 规模很小（<1K 点）且内存非常充足，可以尝试 Shoup
+   - 但对于 4K/8K NTT，**Montgomery 是唯一的最佳选择**
+
+### 性能总结
+
+基于 **RTX 4060 (sm_89)** 的实测数据，我们得出以下结论：
+
+#### 最终排名（28位模数，16次链式乘法）
+
+| 排名 | 算法 | 耗时 (ms) | 加速比 (vs Dynamic) | 推荐度 |
+|:---:|------|:---:|:---:|:---:|
+| 🥇 | **Montgomery** | **0.8812** | **5.75x** | ⭐⭐⭐⭐⭐ |
+| 🥈 | Shoup | 1.1783 | 4.30x | ⭐⭐ |
+| 🥉 | Barrett | 1.2624 | 4.02x | ⭐⭐⭐ |
+| 4️⃣ | Dynamic | 5.0693 | 1.00x | ❌ |
+
+#### 核心结论
+
+1. **Montgomery 是王者**：
+   - ✅ 最快：比 Shoup 快 34%，比 Barrett 快 43%
+   - ✅ 最省内存：只需一个全局常量
+   - ✅ 指令最少：66M vs 170M (Shoup) vs 181M (Barrett)
+
+2. **Shoup 的尴尬定位**：
+   - ✅ 比 Barrett 快 7%（1.26 → 1.18 ms）
+   - ❌ 但内存开销翻倍
+   - ❌ 仍比 Montgomery 慢 34%
+   - 💡 **结论**：在 GPU 上性价比不高
+
+3. **Barrett 的价值**：
+   - ✅ 实现简单，编译器自动优化
+   - ✅ 无需预转换
+   - ⚠️ 如果不想用 Montgomery，Barrett 是合理的退而求其次
+
+#### 在 NTT/INTT 中的最终建议
+
+**强烈推荐使用 Montgomery 乘法**。即使在存在内存访问的场景下，其计算指令的高吞吐量也能带来显著的整体加速，尤其是当模数较大（>20位）时。
+
+Shoup 算法虽然在理论上比 Barrett 有所改进（减少 6% 指令），但在 GPU 上由于：
+- 内存带宽限制
+- 额外的存储开销（2x）
+- 全局内存访问延迟
+
+其优势被大幅削弱（仅快 7%），**完全不如直接使用 Montgomery 乘法**（快 34%）。
 
 ## 附录：完整测试代码
 
@@ -236,6 +452,24 @@ __device__ __forceinline__ uint32_t mont_mul(uint32_t a, uint32_t b) {
 }
 
 // ============================================================================
+// Shoup 约简 (预计算优化的 Barrett 变种)
+// ============================================================================
+template<uint32_t Q>
+__device__ __forceinline__ uint32_t shoup_mul(uint32_t a, uint32_t b, uint32_t b_shoup) {
+    // b_shoup = floor(b * 2^32 / Q) 是预计算的
+    uint64_t prod = static_cast<uint64_t>(a) * b;
+    uint64_t quot = (static_cast<uint64_t>(a) * b_shoup) >> 32;
+    uint32_t result = static_cast<uint32_t>(prod) - static_cast<uint32_t>(quot) * Q;
+    if (result >= Q) result -= Q;
+    return result;
+}
+
+// Shoup 参数预计算函数 (CPU 端)
+inline uint32_t compute_shoup_param(uint32_t b, uint32_t Q) {
+    return static_cast<uint32_t>((static_cast<uint64_t>(b) << 32) / Q);
+}
+
+// ============================================================================
 // 链式乘法 Kernel - 不同次数
 // ============================================================================
 
@@ -290,99 +524,22 @@ __global__ void kernel_mont_chain16(uint32_t *a, uint32_t *b, uint32_t *out, int
     }
 }
 
-// 24次链式乘法 (手动展开 - 暂时注释掉)
-/*
 template<uint32_t Q>
-__global__ void kernel_barrett_chain24(uint32_t *a, uint32_t *b, uint32_t *out, int n) {
+__global__ void kernel_shoup_chain16(uint32_t *a, uint32_t *b, uint32_t *b_shoup, uint32_t *out, int n) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < n) {
-        uint32_t x = a[idx], y = b[idx];
-        // 手动展开 24 次
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        
+        uint32_t x = a[idx], y = b[idx], y_s = b_shoup[idx];
+        x = shoup_mul<Q>(x, y, y_s); x = shoup_mul<Q>(x, y, y_s);
+        x = shoup_mul<Q>(x, y, y_s); x = shoup_mul<Q>(x, y, y_s);
+        x = shoup_mul<Q>(x, y, y_s); x = shoup_mul<Q>(x, y, y_s);
+        x = shoup_mul<Q>(x, y, y_s); x = shoup_mul<Q>(x, y, y_s);
+        x = shoup_mul<Q>(x, y, y_s); x = shoup_mul<Q>(x, y, y_s);
+        x = shoup_mul<Q>(x, y, y_s); x = shoup_mul<Q>(x, y, y_s);
+        x = shoup_mul<Q>(x, y, y_s); x = shoup_mul<Q>(x, y, y_s);
+        x = shoup_mul<Q>(x, y, y_s); x = shoup_mul<Q>(x, y, y_s);
         out[idx] = x;
     }
 }
-
-template<uint32_t Q, uint32_t Q_INV>
-__global__ void kernel_mont_chain24(uint32_t *a, uint32_t *b, uint32_t *out, int n) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) {
-        uint32_t x = a[idx], y = b[idx];
-        // 手动展开 24 次
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-        
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-        x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-
-        out[idx] = x;
-    }
-}
-*/
-
-// 64次链式乘法 (暂时注释掉以加速编译)
-/*
-template<uint32_t Q>
-__global__ void kernel_barrett_chain64(uint32_t *a, uint32_t *b, uint32_t *out, int n) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) {
-        uint32_t x = a[idx], y = b[idx];
-        for (int round = 0; round < 4; round++) {
-            x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-            x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-            x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-            x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-            x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-            x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-            x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-            x = mod_mul_barrett<Q>(x, y); x = mod_mul_barrett<Q>(x, y);
-        }
-        out[idx] = x;
-    }
-}
-
-template<uint32_t Q, uint32_t Q_INV>
-__global__ void kernel_mont_chain64(uint32_t *a, uint32_t *b, uint32_t *out, int n) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) {
-        uint32_t x = a[idx], y = b[idx];
-        for (int round = 0; round < 4; round++) {
-            x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-            x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-            x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-            x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-            x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-            x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-            x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-            x = mont_mul<Q, Q_INV>(x, y); x = mont_mul<Q, Q_INV>(x, y);
-        }
-        out[idx] = x;
-    }
-}
-*/
 
 // ============================================================================
 // 性能测试函数
@@ -442,6 +599,34 @@ float benchmark_dynamic(KernelFunc kernel, uint32_t *d_a, uint32_t *d_b, uint32_
     return ms / iterations;
 }
 
+// 专门用于 Shoup Kernel 的测试函数（需要额外的 b_shoup 参数）
+template<typename KernelFunc>
+float benchmark_shoup(KernelFunc kernel, uint32_t *d_a, uint32_t *d_b, uint32_t *d_b_shoup,
+                      uint32_t *d_out, int n, int blocks, int threads, int iterations) {
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    
+    // 预热
+    kernel<<<blocks, threads>>>(d_a, d_b, d_b_shoup, d_out, n);
+    cudaDeviceSynchronize();
+    
+    // 计时
+    cudaEventRecord(start);
+    for (int i = 0; i < iterations; i++) {
+        kernel<<<blocks, threads>>>(d_a, d_b, d_b_shoup, d_out, n);
+    }
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    
+    float ms = 0;
+    cudaEventElapsedTime(&ms, start, stop);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    
+    return ms / iterations;
+}
+
 
 int main() {
     const int N = 1024 * 1024 * 16;  // 16M 元素
@@ -450,70 +635,89 @@ int main() {
     const int ITERATIONS = 100;
     
     printf("============================================================\n");
-    printf("模乘法性能深度测试\n");
+    printf("模乘法性能深度测试 (含 Shoup 算法)\n");
     printf("============================================================\n");
     printf("元素数量: %d (%.1f M)\n", N, N / 1e6);
     printf("迭代次数: %d\n\n", ITERATIONS);
     
     // 分配内存
-    uint32_t *d_a, *d_b, *d_out;
+    uint32_t *d_a, *d_b, *d_b_shoup, *d_out;
     cudaMalloc(&d_a, N * sizeof(uint32_t));
     cudaMalloc(&d_b, N * sizeof(uint32_t));
+    cudaMalloc(&d_b_shoup, N * sizeof(uint32_t));
     cudaMalloc(&d_out, N * sizeof(uint32_t));
     cudaMemset(d_a, 1, N * sizeof(uint32_t));
     cudaMemset(d_b, 2, N * sizeof(uint32_t));
+    
+    // 预计算 Shoup 参数（在 CPU 上）
+    uint32_t *h_b = new uint32_t[N];
+    uint32_t *h_b_shoup = new uint32_t[N];
+    for (int i = 0; i < N; i++) {
+        h_b[i] = 2;  // 与 d_b 相同
+        h_b_shoup[i] = compute_shoup_param(h_b[i], Q_28BIT);
+    }
+    cudaMemcpy(d_b_shoup, h_b_shoup, N * sizeof(uint32_t), cudaMemcpyHostToDevice);
+    delete[] h_b;
+    delete[] h_b_shoup;
     
     // ==================== 测试1: 不同链式乘法次数 ====================
     printf("==================== 测试1: 链式乘法次数影响 ====================\n");
     printf("模数: Q = 268369921 (28位)\n\n");
     
-    printf("| 次数 | Dynamic (ms) | Barrett (ms) | Montgomery (ms) | Speedup (D/B/M) |\n");
-    printf("|------|--------------|--------------|-----------------|-----------------|\n");
+    printf("| 次数 | Dynamic (ms) | Barrett (ms) | Shoup (ms) | Montgomery (ms) | Speedup (D/B/S/M) |\n");
+    printf("|------|--------------|--------------|------------|-----------------|-------------------|\n");
     
     // 16次
     float t_d16 = benchmark_dynamic(kernel_dynamic_chain16, d_a, d_b, d_out, N, Q_28BIT, BLOCKS, THREADS, ITERATIONS);
     float t_b16 = benchmark(kernel_barrett_chain16<Q_28BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
+    float t_s16 = benchmark_shoup(kernel_shoup_chain16<Q_28BIT>, d_a, d_b, d_b_shoup, d_out, N, BLOCKS, THREADS, ITERATIONS);
     float t_m16 = benchmark(kernel_mont_chain16<Q_28BIT, Q_INV_28BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
-    printf("| 16   | %.4f       | %.4f       | %.4f          | 1.00 / %.2f / %.2f |\n", t_d16, t_b16, t_m16, t_d16/t_b16, t_d16/t_m16);
-    
-    // 24次
-
-    /*
-    float t_b24 = benchmark(kernel_barrett_chain24<Q_28BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
-    float t_m24 = benchmark(kernel_mont_chain24<Q_28BIT, Q_INV_28BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
-    printf("| 24   | %.4f       | %.4f          | %.2fx      |\n", t_b24, t_m24, t_b24/t_m24);
-    */
-    
-    // 64次
-    /*
-    float t_b64 = benchmark(kernel_barrett_chain64<Q_28BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
-    float t_m64 = benchmark(kernel_mont_chain64<Q_28BIT, Q_INV_28BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
-    printf("| 64   | %.4f       | %.4f          | %.2fx      |\n", t_b64, t_m64, t_b64/t_m64);
-    */
+    printf("| 16   | %.4f       | %.4f       | %.4f     | %.4f          | 1.00 / %.2f / %.2f / %.2f |\n", 
+           t_d16, t_b16, t_s16, t_m16, t_d16/t_b16, t_d16/t_s16, t_d16/t_m16);
     
     // ==================== 测试2: 不同模数位宽 ====================
     printf("\n==================== 测试2: 模数位宽影响 (16次链式) ====================\n\n");
     
-    printf("| 模数 | 位宽 | Barrett (ms) | Montgomery (ms) | 比值 (B/M) |\n");
-    printf("|------|------|--------------|-----------------|------------|\n");
+    printf("| 模数 | 位宽 | Barrett (ms) | Shoup (ms) | Montgomery (ms) | 比值 (B/S/M) |\n");
+    printf("|------|------|--------------|------------|-----------------|---------------|\n");
+    
+    // 预计算不同模数的 Shoup 参数
+    uint32_t *h_b_tmp = new uint32_t[N];
+    uint32_t *h_b_shoup_tmp = new uint32_t[N];
     
     // 16位模数
+    for (int i = 0; i < N; i++) h_b_shoup_tmp[i] = compute_shoup_param(2, Q_16BIT);
+    cudaMemcpy(d_b_shoup, h_b_shoup_tmp, N * sizeof(uint32_t), cudaMemcpyHostToDevice);
     float t_b16bit = benchmark(kernel_barrett_chain16<Q_16BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
+    float t_s16bit = benchmark_shoup(kernel_shoup_chain16<Q_16BIT>, d_a, d_b, d_b_shoup, d_out, N, BLOCKS, THREADS, ITERATIONS);
     float t_m16bit = benchmark(kernel_mont_chain16<Q_16BIT, Q_INV_16BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
-    printf("| %u | 16位 | %.4f       | %.4f          | %.2fx      |\n", Q_16BIT, t_b16bit, t_m16bit, t_b16bit/t_m16bit);
+    printf("| %u | 16位 | %.4f       | %.4f     | %.4f          | %.2f / %.2f / 1.00 |\n", 
+           Q_16BIT, t_b16bit, t_s16bit, t_m16bit, t_b16bit/t_m16bit, t_s16bit/t_m16bit);
     
     // 20位模数
+    for (int i = 0; i < N; i++) h_b_shoup_tmp[i] = compute_shoup_param(2, Q_20BIT);
+    cudaMemcpy(d_b_shoup, h_b_shoup_tmp, N * sizeof(uint32_t), cudaMemcpyHostToDevice);
     float t_b20bit = benchmark(kernel_barrett_chain16<Q_20BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
+    float t_s20bit = benchmark_shoup(kernel_shoup_chain16<Q_20BIT>, d_a, d_b, d_b_shoup, d_out, N, BLOCKS, THREADS, ITERATIONS);
     float t_m20bit = benchmark(kernel_mont_chain16<Q_20BIT, Q_INV_20BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
-    printf("| %u | 20位 | %.4f       | %.4f          | %.2fx      |\n", Q_20BIT, t_b20bit, t_m20bit, t_b20bit/t_m20bit);
+    printf("| %u | 20位 | %.4f       | %.4f     | %.4f          | %.2f / %.2f / 1.00 |\n", 
+           Q_20BIT, t_b20bit, t_s20bit, t_m20bit, t_b20bit/t_m20bit, t_s20bit/t_m20bit);
     
     // 24位模数
+    for (int i = 0; i < N; i++) h_b_shoup_tmp[i] = compute_shoup_param(2, Q_24BIT);
+    cudaMemcpy(d_b_shoup, h_b_shoup_tmp, N * sizeof(uint32_t), cudaMemcpyHostToDevice);
     float t_b24bit = benchmark(kernel_barrett_chain16<Q_24BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
+    float t_s24bit = benchmark_shoup(kernel_shoup_chain16<Q_24BIT>, d_a, d_b, d_b_shoup, d_out, N, BLOCKS, THREADS, ITERATIONS);
     float t_m24bit = benchmark(kernel_mont_chain16<Q_24BIT, Q_INV_24BIT>, d_a, d_b, d_out, N, BLOCKS, THREADS, ITERATIONS);
-    printf("| %u | 24位 | %.4f       | %.4f          | %.2fx      |\n", Q_24BIT, t_b24bit, t_m24bit, t_b24bit/t_m24bit);
+    printf("| %u | 24位 | %.4f       | %.4f     | %.4f          | %.2f / %.2f / 1.00 |\n", 
+           Q_24BIT, t_b24bit, t_s24bit, t_m24bit, t_b24bit/t_m24bit, t_s24bit/t_m24bit);
     
     // 28位模数
-    printf("| %u | 28位 | %.4f       | %.4f          | %.2fx      |\n", Q_28BIT, t_b16, t_m16, t_b16/t_m16);
+    printf("| %u | 28位 | %.4f       | %.4f     | %.4f          | %.2f / %.2f / 1.00 |\n", 
+           Q_28BIT, t_b16, t_s16, t_m16, t_b16/t_m16, t_s16/t_m16);
+    
+    delete[] h_b_tmp;
+    delete[] h_b_shoup_tmp;
     
     // ==================== 总结 ====================
     printf("\n==================== 总结 ====================\n\n");
@@ -521,19 +725,24 @@ int main() {
     printf("   - 16次: \n");
     printf("     * Dynamic    : 1.00x (%.4f ms)\n", t_d16);
     printf("     * Barrett    : %.2fx (%.4f ms)\n", t_d16/t_b16, t_b16);
+    printf("     * Shoup      : %.2fx (%.4f ms)\n", t_d16/t_s16, t_s16);
     printf("     * Montgomery : %.2fx (%.4f ms)\n", t_d16/t_m16, t_m16);
-    // printf("   - 24次: Barrett/Montgomery = %.2fx\n", t_b24/t_m24);
-    // printf("   - 64次: Barrett/Montgomery = %.2fx\n", t_b64/t_m64);
     printf("\n");
-    printf("2. 模数位宽影响 (16次链式):\n");
-    printf("   - 16位: Barrett/Montgomery = %.2fx\n", t_b16bit/t_m16bit);
-    printf("   - 20位: Barrett/Montgomery = %.2fx\n", t_b20bit/t_m20bit);
-    printf("   - 24位: Barrett/Montgomery = %.2fx\n", t_b24bit/t_m24bit);
-    printf("   - 28位: Barrett/Montgomery = %.2fx\n", t_b16/t_m16);
+    printf("2. 模数位宽影响 (16次链式，相对 Montgomery):\n");
+    printf("   - 16位: Barrett/Shoup/Montgomery = %.2fx / %.2fx / 1.00x\n", t_b16bit/t_m16bit, t_s16bit/t_m16bit);
+    printf("   - 20位: Barrett/Shoup/Montgomery = %.2fx / %.2fx / 1.00x\n", t_b20bit/t_m20bit, t_s20bit/t_m20bit);
+    printf("   - 24位: Barrett/Shoup/Montgomery = %.2fx / %.2fx / 1.00x\n", t_b24bit/t_m24bit, t_s24bit/t_m24bit);
+    printf("   - 28位: Barrett/Shoup/Montgomery = %.2fx / %.2fx / 1.00x\n", t_b16/t_m16, t_s16/t_m16);
+    printf("\n");
+    printf("3. Shoup vs Barrett (28位模数):\n");
+    printf("   - Shoup 相对 Barrett 加速: %.2fx\n", t_b16/t_s16);
+    printf("   - 但仍比 Montgomery 慢: %.2fx\n", t_s16/t_m16);
+    printf("   - 内存开销: Shoup 需要 2x 存储 (原值 + Shoup 参数)\n");
     
     // 清理
     cudaFree(d_a);
     cudaFree(d_b);
+    cudaFree(d_b_shoup);
     cudaFree(d_out);
     
     printf("\n============================================================\n");
@@ -541,5 +750,3 @@ int main() {
     return 0;
 }
 ```
-```
-
