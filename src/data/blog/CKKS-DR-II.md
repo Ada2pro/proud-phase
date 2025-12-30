@@ -1,4 +1,3 @@
-
 ---
 title: "再看《Homomorphic Multiple Precision Multiplication for CKKS and Reduced Modulus Consumption》"
 pubDatetime: 2025-12-28T19:49:50Z
