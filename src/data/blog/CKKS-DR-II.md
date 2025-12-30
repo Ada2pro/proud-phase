@@ -9,7 +9,7 @@ featured: true
 draft: false
 timezone: "Asia/Shanghai"
 ---
-[上一篇文章](./CKKS-DR-I)中通过与Google AI Stduio中的Gemini 3 pro 进行对话学习，大致了解了《Homomorphic Multiple Precision Multiplication for CKKS and Reduced Modulus Consumption》中的降低精度与减少模数消耗的思路，关键在于通过将密文拆分为高低位，在Tensor2中隐式rescale掉一部分scale。
+[上一篇文章](/posts/ckks-dr-i)中通过与Google AI Stduio中的Gemini 3 pro 进行对话学习，大致了解了《Homomorphic Multiple Precision Multiplication for CKKS and Reduced Modulus Consumption》中的降低精度与减少模数消耗的思路，关键在于通过将密文拆分为高低位，在Tensor2中隐式rescale掉一部分scale。
 
 ## 核心探讨：朴素 RNS-CKKS vs Mult² 方案
 
