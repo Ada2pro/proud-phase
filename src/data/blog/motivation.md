@@ -1,13 +1,13 @@
 ---
-title: "深度解析：CKKS 同态加密中的多精度乘法优化 (HMPM)"
+title: "一点思考与规划"
 pubDatetime: 2025-12-29T10:00:00Z
 description: >
-  本文基于论文《Homomorphic Multiple Precision Multiplication for CKKS and Reduced Modulus Consumption》，深入探讨如何通过同态欧几里得除法和密文分解技术，在 CKKS 方案中实现低模数消耗的高精度乘法。
+  新的一年里，我该怎样度过......
 tags:
-  - FHE
-  - CKKS
-  - Cryptography
+  - 随笔
+  - 生活
 featured: false
 draft: true
 timezone: "Asia/Shanghai"
 ---
+暂时留空，后续补上。

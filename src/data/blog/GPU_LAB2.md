@@ -5,7 +5,7 @@ description: >
   描述我在国科大课程《GPU编程与架构》上作为旁听学生，尝试完成LAB的过程。
 tags:
   - 随笔
-featured: true
+featured: false
 draft: false
 timezone: "Asia/Shanghai"
 ---
