@@ -5,6 +5,7 @@ description: >
   介绍《Efficient Bootstrapping for Approximate  Homomorphic Encryption with Non-Sparse Keys》中的密钥切换优化技术
 tags:
   - FHE
+    - CKKS
 featured: true
 draft: false
 timezone: "Asia/Shanghai"
