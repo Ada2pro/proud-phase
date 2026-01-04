@@ -48,4 +48,4 @@ timezone: "Asia/Shanghai"
 Tor M. Aamodt, Wilson Wai Lun Fung, and Timothy G. Rogers. 2018. General-purpose Graphics Processor Architectures. Morgan & Claypool Publishers.
 
 
-[点击下载 GPU 课程大作业课件 PDF 打包文件（2025课程大作业.zip）](/blog/GPU_pdf/课件.zip)
+<a href="/blog/GPU_pdf/课件.zip" download>点击下载 GPU 课程大作业课件 PDF 打包文件（2025课程大作业.zip）</a>
