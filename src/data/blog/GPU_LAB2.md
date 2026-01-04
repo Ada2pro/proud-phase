@@ -41,3 +41,11 @@ timezone: "Asia/Shanghai"
 而我现在似乎越来越缺少思考能力了，AI在给我很多便捷的同时，似乎也在慢慢侵蚀我的大脑，让其懒惰与低效，于是乎，我至少有这个博客平台供自己反思与记录。
 
 总之，不要太看重死板的成绩排名等，在完成任务的过程中，学习到了什么新东西，如何解决遇到的问题，以及积极的和别人进行交流讨论，搜集网络上的学习资源等经历才是最重要的。
+
+
+
+最后，给出相关课件：
+Tor M. Aamodt, Wilson Wai Lun Fung, and Timothy G. Rogers. 2018. General-purpose Graphics Processor Architectures. Morgan & Claypool Publishers.
+
+
+[点击下载 GPU 课程大作业课件 PDF 打包文件（2025课程大作业.zip）](/blog/GPU_pdf/课件.zip)
