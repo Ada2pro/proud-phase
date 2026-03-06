@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 
-async function loadGoogleFont(font: string, text: string, weight: number): Promise<ArrayBuffer> {
+async function loadGoogleFont(
+  font: string,
+  text: string,
+  weight: number
+): Promise<ArrayBuffer> {
   const API = `https://fonts.googleapis.com/css2?family=${font}:wght@${weight}&text=${encodeURIComponent(text)}`;
 
   const css = await (
