@@ -1,8 +1,6 @@
-async function loadGoogleFont(
-  font: string,
-  text: string,
-  weight: number
-): Promise<ArrayBuffer> {
+import { readFile } from "node:fs/promises";
+
+async function loadGoogleFont(font: string, text: string, weight: number): Promise<ArrayBuffer> {
   const API = `https://fonts.googleapis.com/css2?family=${font}:wght@${weight}&text=${encodeURIComponent(text)}`;
 
   const css = await (
@@ -29,6 +27,19 @@ async function loadGoogleFont(
   return res.arrayBuffer();
 }
 
+async function loadLocalFont(paths: string[]): Promise<ArrayBuffer | null> {
+  for (const path of paths) {
+    try {
+      const data = await readFile(path);
+      return Uint8Array.from(data).buffer;
+    } catch {
+      // Try the next candidate font path.
+    }
+  }
+
+  return null;
+}
+
 async function loadGoogleFonts(
   text: string
 ): Promise<
@@ -36,22 +47,31 @@ async function loadGoogleFonts(
 > {
   const fontsConfig = [
     {
-      name: "IBM Plex Mono",
+      name: "DejaVu Sans",
       font: "IBM+Plex+Mono",
       weight: 400,
       style: "normal",
+      localPaths: [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed.ttf",
+      ],
     },
     {
-      name: "IBM Plex Mono",
+      name: "DejaVu Sans",
       font: "IBM+Plex+Mono",
       weight: 700,
       style: "bold",
+      localPaths: [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
+      ],
     },
   ];
 
   const fonts = await Promise.all(
-    fontsConfig.map(async ({ name, font, weight, style }) => {
-      const data = await loadGoogleFont(font, text, weight);
+    fontsConfig.map(async ({ name, font, weight, style, localPaths }) => {
+      const localData = await loadLocalFont(localPaths);
+      const data = localData ?? (await loadGoogleFont(font, text, weight));
       return { name, data, weight, style };
     })
   );
