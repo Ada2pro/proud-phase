@@ -20,6 +20,7 @@ blackwell架构下的nvidia gpu显卡相较于上一代生产级显卡的Hopper�
 2. 新增加了NVFP4数据类型的计算
 3. tcgen05指令，仅在B100等生产级的显卡上支持。
 4. 在B300上的Special Function Units (SFUs)计算吞吐量加强了很多，方便attention的计算速度。
+5. blackwell引入行业首创的TEE-I/O功能
 
 另外，flashattention4也只在B100这种卡上支持，5090、RTX Pro 6000 Blackwell并不能进行原生实现运行。
 
